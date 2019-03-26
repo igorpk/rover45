@@ -3,30 +3,26 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\RoverControl;
 
 class RoverController extends Controller
 {
     /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
-    public function __construct()
-    {
-        //
-    }
-
-    /**
      * Render the HTML form
+     *
+     * @return Response
      */
     public function index() {
         return view('index');
     }
 
     /**
-     * 
+     * Initialize a Rover instance, providing it
+     * with the command received.
+     *
+     * @param Request $request HTTP Post request
      */
     public function initiate(Request $request) {
-        var_dump(explode(" ", $request->get('masterCommand')));
+        $rover = new RoverControl( $request->get('masterCommand') );
     }
 }

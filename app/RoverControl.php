@@ -2,6 +2,8 @@
 
 namespace App;
 
+use Illuminate\Support\Facades\Log;
+
 /**
  * RoverControl
  *
@@ -33,8 +35,14 @@ class RoverControl
         // BEEP, RECEIVED COMMAND
         $this->master_command = $master_command;
         $this->current_pos = [0,0,0];
+
+        // Set the default values from constructor argument
         $this->initialise();
+
+        $this->computeSequence();
     }
+
+
 
     /**
      * Populates the rover's boundary, start position as well as the movement sequence.
@@ -44,11 +52,9 @@ class RoverControl
         $split = explode(" ", $this->master_command);
 
         $this->boundary = [$split[0], $split[1]];
-        $this->start_pos = $this->current_pos = [$split[2], $split[3], $this->convertDirection($split[4])];
+        $this->start_pos = $this->current_pos = [$split[2], $split[3], $this->convertDirectionToInt($split[4])];
 
         $this->master_sequence = $split[5];
-
-        // ROVER READY
     }
 
     /**
@@ -60,7 +66,7 @@ class RoverControl
      * @param String $direction
      * @return int
      */
-    protected function convertDirection( String $direction ) {
+    protected function convertDirectionToInt( String $direction ) {
         $directions_flipped = array_flip( $this->direction_reference );
         return $directions_flipped[$direction];
     }
@@ -74,8 +80,13 @@ class RoverControl
         $pos = $this->current_pos;
 
         // Loop over movement sequence.
-        foreach($this->master_sequence as $instruction) {
-
+        foreach(str_split($this->master_sequence) as $instruction) {
+            if($instruction == 'M') {
+                $this->current_pos = $this->move();
+            }
+            else {
+                $this->current_pos = $this->rotate($instruction);
+            }
         }
     }
 
@@ -85,30 +96,35 @@ class RoverControl
      *
      * @return array [x,y,d]
      */
-    protected function rotate() {
+    protected function rotate( String $instruction ) {
 
-        $pos = $this->current_position;
-        $direction = $pos[2];
+        echo "Rotate Before: ". implode(',', $this->current_pos) ."<br />";
 
-        switch($direction) {
+        $pos = $this->current_pos;
+
+        switch($instruction) {
             case 'L':
                 // Left turn from N wraps the end of the array, i.e W
                 if($pos[2] == 0) {
-                    $pos = size($this->direction_reference);
+                    $pos[2] = count($this->direction_reference) - 1 ;
+                    echo $pos[2];
                 }
                 else {
-                    $pos[2]++;
+                    $pos[2]--;
                 }
             break;
             case 'R' :
-                if($pos[2] >= size($this->direction_reference)) {
-                    $pos[2] = size($this->direction_reference);
+                // Right turn from W wraps to the beginning of the array, i.e N
+                if($pos[2] >= count($this->direction_reference) - 1 ) {
+                    $pos[2] = 0;
                 }
                 else {
                     $pos[2]++;
                 }
             break;
         }
+
+        echo "Rotate After: ". implode(',', $pos) ."<br />";
 
         return $pos;
     }
@@ -119,11 +135,11 @@ class RoverControl
      * @return array [x, y, d]
      */
     protected function move() {
-
-        $pos = $this->current_position;
+        echo "Move Before: ". implode(',', $this->current_pos) ."<br />";
+        $pos = $this->current_pos;
         $direction = $pos[2];
-
-        switch($direction) {
+        echo($this->direction_reference[$direction]);
+        switch($this->direction_reference[$direction]) {
             case 'N' :
                 $pos[1]++;
             break;
@@ -134,9 +150,11 @@ class RoverControl
                 $pos[1]--;
             break;
             case 'W' :
-                $pos[0]++;
+                $pos[0]--;
             break;
         }
+
+        echo "Move After: ". implode(',', $pos) ."<br />";;
 
         return $pos;
     }
