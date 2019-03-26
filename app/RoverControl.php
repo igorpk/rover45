@@ -15,46 +15,61 @@ use Illuminate\Support\Facades\Log;
  */
 class RoverControl
 {
-    protected $master_command;
-
+    // Raw movement sequence
     protected $master_sequence;
-    protected $start_pos;
-    protected $boundary;
-    protected $move_sequence;
 
+    // Cartesian position and direction
+    protected $position = ['x' => 0, 'y' => 0, 'd' => 0];
+
+    // Cartesian points representing area boundaries
+    protected $boundary = ['x' => 0, 'y' => 0];
+
+    // Integer-indexed directions for orientation
     protected $direction_reference = ['N', 'E', 'S', 'W'];
 
-    public $current_pos;
+    // Stores all moves performed in sequence.
+    protected $move_sequence;
 
     /**
      * Initialise the Rover.
+     * Populates the rover's boundary, start position as well as the movement sequence.
      *
      * @param String $master_command
      */
     public function __construct( String $master_command ) {
-        // BEEP, RECEIVED COMMAND
-        $this->master_command = $master_command;
-        $this->current_pos = [0,0,0];
 
-        // Set the default values from constructor argument
-        $this->initialise();
+        // Separate the movement command out into an array
+        $split = explode(" ", $master_command);
 
+        // Set initial rover state from input
+        $this->setBoundary( [$split[0], $split[1]] );
+        $this->setPosition( ['x' => $split[2], 'y' => $split[3], 'd' => $this->convertDirectionToInt($split[4])] );
+
+        // Set the set of instructions for the rover to follow
+        $this->setMasterSequence( $split[5] );
+
+        Log::info("Rover primed and ready. Start Point: ". print_r($this->position, 1));
+
+        // Engage
         $this->computeSequence();
     }
 
-
-
     /**
-     * Populates the rover's boundary, start position as well as the movement sequence.
+     * Returns a set of coordinates corresponding to the instructions provided
+     *
+     * Iterates over the master move sequence and sets $this->position accordingly
+     * for each move.
+     *
+     * @return void
      */
-    public function initialise() {
-        // Separate the movement sequence out into an array
-        $split = explode(" ", $this->master_command);
+    protected function computeSequence() {
 
-        $this->boundary = [$split[0], $split[1]];
-        $this->start_pos = $this->current_pos = [$split[2], $split[3], $this->convertDirectionToInt($split[4])];
-
-        $this->master_sequence = $split[5];
+        // Loop over movement sequence.
+        foreach(str_split($this->master_sequence) as $instruction) {
+            // Move or Rotate, depending on instruction
+            $this->setPosition(($instruction == 'M') ? $this->move() : $this->rotate($instruction));
+            $this->move_sequence []= $this->position;
+        }
     }
 
     /**
@@ -68,26 +83,8 @@ class RoverControl
      */
     protected function convertDirectionToInt( String $direction ) {
         $directions_flipped = array_flip( $this->direction_reference );
+
         return $directions_flipped[$direction];
-    }
-
-    /**
-     * Returns a set of coordinates corresponding to the instructions provided
-     */
-    protected function computeSequence() {
-
-        // Locate where the rover is
-        $pos = $this->current_pos;
-
-        // Loop over movement sequence.
-        foreach(str_split($this->master_sequence) as $instruction) {
-            if($instruction == 'M') {
-                $this->current_pos = $this->move();
-            }
-            else {
-                $this->current_pos = $this->rotate($instruction);
-            }
-        }
     }
 
     /**
@@ -98,33 +95,32 @@ class RoverControl
      */
     protected function rotate( String $instruction ) {
 
-        echo "Rotate Before: ". implode(',', $this->current_pos) ."<br />";
+        Log::info("Rotate Before: ". implode(',', $this->position));
 
-        $pos = $this->current_pos;
+        $pos = $this->position;
 
         switch($instruction) {
             case 'L':
                 // Left turn from N wraps the end of the array, i.e W
-                if($pos[2] == 0) {
-                    $pos[2] = count($this->direction_reference) - 1 ;
-                    echo $pos[2];
+                if($pos['d'] == 0) {
+                    $pos['d'] = count($this->direction_reference) - 1;
                 }
                 else {
-                    $pos[2]--;
+                    $pos['d']--;
                 }
             break;
             case 'R' :
                 // Right turn from W wraps to the beginning of the array, i.e N
-                if($pos[2] >= count($this->direction_reference) - 1 ) {
-                    $pos[2] = 0;
+                if($pos['d'] >= count($this->direction_reference) - 1) {
+                    $pos['d'] = 0;
                 }
                 else {
-                    $pos[2]++;
+                    $pos['d']++;
                 }
             break;
         }
 
-        echo "Rotate After: ". implode(',', $pos) ."<br />";
+        Log::info("Rotate After: ". implode(',', $pos));
 
         return $pos;
     }
@@ -135,28 +131,70 @@ class RoverControl
      * @return array [x, y, d]
      */
     protected function move() {
-        echo "Move Before: ". implode(',', $this->current_pos) ."<br />";
-        $pos = $this->current_pos;
-        $direction = $pos[2];
-        echo($this->direction_reference[$direction]);
-        switch($this->direction_reference[$direction]) {
+
+        Log::info("Move Before: ". implode(',', $this->position));
+
+        $pos = $this->position;
+        switch($this->direction_reference[$pos['d']]) {
             case 'N' :
-                $pos[1]++;
+                $pos['y']++;
             break;
             case 'E' :
-                $pos[0]++;
+                $pos['x']++;
             break;
             case 'S' :
-                $pos[1]--;
+                $pos['y']--;
             break;
             case 'W' :
-                $pos[0]--;
+                $pos['x']--;
             break;
         }
 
-        echo "Move After: ". implode(',', $pos) ."<br />";;
+        Log::info("Move After: ". implode(',', $pos));
 
         return $pos;
+    }
+
+    /**
+     * Return the current position in the same format as provided
+     * in the initial command (e.g '1 2 S')
+     *
+     * @return String
+     */
+    public function getFormattedPosition() {
+        return $this->position['x'] .' '. $this->position['y'] .' '. $this->direction_reference[$this->position['d']];
+    }
+
+
+    /**
+     * Mutator for $this->position
+     *
+     * @param array $position
+     * @return void
+     */
+    public function setPosition(Array $position) {
+        $this->position = $position;
+    }
+
+    /**
+     * Mutator for $this->boundary
+     *
+     * @param array $boundary
+     * @return void
+     */
+    public function setBoundary(Array $boundary) {
+        $this->boundary = $boundary;
+    }
+
+
+    /**
+     * Mutator for $this->master_sequence
+     *
+     * @param array $master_sequence
+     * @return void
+     */
+    public function setMasterSequence(String $master_sequence) {
+        $this->master_sequence = $master_sequence;
     }
 
 }

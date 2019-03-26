@@ -12,4 +12,4 @@
 */
 
 $router->get('/', 'RoverController@index');
-$router->post('/initiate', 'RoverController@initiate');
+$router->post('/navigate', 'RoverController@navigate');
