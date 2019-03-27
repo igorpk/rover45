@@ -27,15 +27,16 @@ The app will print out the resulting position of the rover.
 I chose to use Lumen due to ease and familiarity. I fully recognise that it's overkill.
 
 The rover has a position and direction, represented by $position **[x,y,d]**.
+
+Internally, the cardinal points are stored in an array (**$direction_reference**) to allow for numerical manipulation of direction.
+
 For movement, **x** and **y** are incremented/decremented based on the value of **d**.
-For rotation, **d** is set based on the next logical array element in $direction_reference.
+For rotation, **d** is set based on the next logical array element in **$direction_reference**.
 
 When the command is received to move, the script performs each instruction in order, while maintaining a
 history of instructions executed in **$move_sequence**
 
 The instruction history could allow for greater extension applications down the line (graphs, AI etc).
-
-Internally, the cardinal points are stored in an array (**$direction_reference**) to allow for numerical manipulation of direction.
 
 Directions are only displayed as strings (N,E,S,W) when returned to the user.
 
