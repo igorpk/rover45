@@ -3,11 +3,12 @@
 namespace App;
 
 use Illuminate\Support\Facades\Log;
+use Mockery\Exception;
 
 /**
  * RoverControl
  *
- * Receives movement instructions from GNC as target coordinates
+ * Receives movement instructions.
  *
  * Responsible for decoding an incoming movement instruction, and
  * issuing the instruction to the rover.
@@ -38,8 +39,27 @@ class RoverControl
      */
     public function __construct( String $master_command ) {
 
+        $this->master_command = $master_command;
+
+        $this->initRover();
+
+        if($this->checkCommand()) {
+            // Engage
+            $this->computeSequence();
+        }
+        else {
+            throw new Exception('ABORT. Master Command malformed.');
+        }
+    }
+
+    /**
+     * Sets the rover to start conditions as described in the input string
+     *
+     * @return void
+     */
+    protected function initRover() {
         // Separate the movement command out into an array
-        $split = explode(" ", $master_command);
+        $split = explode(" ", $this->master_command);
 
         // Set initial rover state from input
         $this->setBoundary( [$split[0], $split[1]] );
@@ -48,11 +68,9 @@ class RoverControl
         // Set the set of instructions for the rover to follow
         $this->setMasterSequence( $split[5] );
 
-        Log::info("Rover primed and ready. Start Point: ". print_r($this->position, 1));
+        Log::info("Rover primed and ready. Start Point: ". implode(',', $this->position));
+   }
 
-        // Engage
-        $this->computeSequence();
-    }
 
     /**
      * Returns a set of coordinates corresponding to the instructions provided
@@ -95,8 +113,6 @@ class RoverControl
      */
     protected function rotate( String $instruction ) {
 
-        Log::info("Rotate Before: ". implode(',', $this->position));
-
         $pos = $this->position;
 
         switch($instruction) {
@@ -120,7 +136,7 @@ class RoverControl
             break;
         }
 
-        Log::info("Rotate After: ". implode(',', $pos));
+        Log::info("Got instruction: {$instruction}. Rotated to: ". implode(',', $pos));
 
         return $pos;
     }
@@ -131,8 +147,6 @@ class RoverControl
      * @return array [x, y, d]
      */
     protected function move() {
-
-        Log::info("Move Before: ". implode(',', $this->position));
 
         $pos = $this->position;
         switch($this->direction_reference[$pos['d']]) {
@@ -150,7 +164,7 @@ class RoverControl
             break;
         }
 
-        Log::info("Move After: ". implode(',', $pos));
+        Log::info("Got instruction: M. Moved to: ". implode(',', $pos));
 
         return $pos;
     }
@@ -165,7 +179,42 @@ class RoverControl
         return $this->position['x'] .' '. $this->position['y'] .' '. $this->direction_reference[$this->position['d']];
     }
 
+    /**
+     * Compares a set of coordinates to the set boundary.
+     * If out of bounds, issues an abort error and re-sets the rover.
+     */
+    protected function checkBoundary() {
+        if($this->boundary['x'] > $this->position['x'] ||
+            $this->boundary['y'] > $this->position['y']) {
+                Log::critical('ABORT. Rover out of bounds, resetting to start.');
+                $this->initRover();
+            }
+    }
 
+    /**
+     * Validates that the input command:
+     *  Has 6 elements in total,
+     *  Has 4 integer coordinates for boundary and start position
+     *  Has a string for start direction
+     *  Has a movement sequence that contains only (M|R|L)
+     */
+    protected function checkCommand() {
+        $split_command = explode(' ', $this->master_command);
+
+        $split_command = array_map('trim', $split_command);
+
+        if(! count($split_command) == 6) return false;
+
+        // Check coordinates
+        $arr = array_filter(array_slice($split_command,0,4), 'is_numeric');
+        if(! count($arr) == 4) return false;
+
+        if(! in_array($split_command[4], $this->direction_reference)) return false;
+
+        if(! preg_match('/^[M|R|L]+$/', $split_command[5])) return false;
+
+        return true;
+    }
     /**
      * Mutator for $this->position
      *
@@ -186,7 +235,6 @@ class RoverControl
         $this->boundary = $boundary;
     }
 
-
     /**
      * Mutator for $this->master_sequence
      *
@@ -196,5 +244,4 @@ class RoverControl
     public function setMasterSequence(String $master_sequence) {
         $this->master_sequence = $master_sequence;
     }
-
 }

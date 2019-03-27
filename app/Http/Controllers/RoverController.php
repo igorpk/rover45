@@ -23,7 +23,13 @@ class RoverController extends Controller
      * @param Request $request HTTP Post request
      */
     public function navigate(Request $request) {
-        $rover = new RoverControl( $request->get('masterCommand') );
+        try {
+            $rover = new RoverControl( str_replace('  ', ' ', trim($request->get('masterCommand'))));
+        }
+        catch(Exception $e) {
+            echo $e;
+            die();
+        }
 
         return view('result', [ 'position' => $rover->getFormattedPosition()]);
     }
